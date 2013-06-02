@@ -1,0 +1,23 @@
+{
+    "name": "shvetsgroup/parallelrunner",
+    "type": "library",
+    "description": "Prallel runner extension for Behat",
+    "keywords": ["behat", "bdd", "parallel", "runner"],
+    "homepage": "http://github.com/shvetsgroup/",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Alexander Shvets",
+            "email": "neochief@shvetsgroup.com",
+            "role": "developer"
+        }
+    ],
+    "require": {
+        "php": ">=5.3.6",
+        "behat/behat": ">=2.4.0,<2.5.0",
+        "symfony/process": "2.2.*"
+    },
+    "autoload": {
+        "psr-0": { "shvetsgroup\\ParallelRunner": "src/" }
+    }
+}
