@@ -55,7 +55,7 @@ class Extension implements ExtensionInterface
     {
         $builder
             ->children()
-                ->integerNode('process_count')
+                ->scalarNode('process_count')
                     ->defaultValue(1)
                 ->end()
                 ->arrayNode('profiles')
