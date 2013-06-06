@@ -179,19 +179,23 @@ class ParallelRunnerCommand extends BehatCommand
      */
     protected function registerParentSignal()
     {
-        if (function_exists('pcntl_signal')) {
-            $processes = $this->processes;
-            $function = function () use ($processes) {
-                foreach ($processes as $process) {
-                    if ($process->isRunning()) {
-                        $process->stop(30);
-                    }
+        $dispatcher = $this->getContainer()->get('behat.event_dispatcher');
+        $logger = $this->getContainer()->get('behat.logger');
+        $parameters = $this->getContainer()->get('behat.context.dispatcher')->getContextParameters();
+
+        $processes = $this->processes;
+        $function = function ($signal) use ($dispatcher, $parameters, $logger, $processes) {
+            foreach ($processes as $process) {
+                if ($process->isRunning()) {
+                    $process->stop(30);
                 }
-                exit(1);
-            };
-            pcntl_signal(SIGINT, $function);
-            pcntl_signal(SIGTERM, $function);
-        }
+            }
+            $dispatcher->dispatch('afterSuite', new SuiteEvent($logger, $parameters, FALSE));
+            throw new \Exception("Received Kill signal $signal");
+        };
+        pcntl_signal(SIGINT, $function);
+        pcntl_signal(SIGTERM, $function);
+        pcntl_signal(SIGQUIT, $function);
     }
 
     /**
@@ -210,6 +214,7 @@ class ParallelRunnerCommand extends BehatCommand
             };
             pcntl_signal(SIGINT, $function);
             pcntl_signal(SIGTERM, $function);
+            pcntl_signal(SIGQUIT, $function);
         }
     }
 
