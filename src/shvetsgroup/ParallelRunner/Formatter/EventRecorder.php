@@ -16,7 +16,7 @@ use Behat\Behat\Event\BackgroundEvent,
     Behat\Behat\Event\StepEvent;
 
 /**
- * Behat-Gearman Event Recorder
+ * Behat Event Recorder
  *
  * @author Anthon Pang <apang@softwaredevelopment.ca>
  */

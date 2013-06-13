@@ -70,7 +70,7 @@ class ParallelRunnerCommand extends BehatCommand
      */
     protected function runParallel(InputInterface $input)
     {
-        $eventService = $this->getContainer()->get('behat.gearman.service.event');
+        $eventService = $this->getContainer()->get('behat.parallel_runner.service.event');
         $this->suiteID = time() . '-' . rand(1, PHP_INT_MAX);
         $result_dir = sys_get_temp_dir() . '/behat-' . $this->suiteID;
         if (!is_dir($result_dir)) {
@@ -78,7 +78,7 @@ class ParallelRunnerCommand extends BehatCommand
         }
 
         // Prepare parameters string.
-        $command_template = array('XDEBUG_CONFIG="idekey=apache" ' . realpath($_SERVER['SCRIPT_FILENAME']));
+        $command_template = array(realpath($_SERVER['SCRIPT_FILENAME']));
         foreach ($input->getArguments() as $argument) {
             $command_template[] = $argument;
         }
@@ -119,9 +119,15 @@ class ParallelRunnerCommand extends BehatCommand
             // Process events, dumped by children processes (in other words, do the formatting job).
             $files = glob($result_dir . '/*', GLOB_BRACE);
             foreach ($files as $file) {
-                $events = unserialize(file_get_contents($file));
-                $eventService->replay($events);
-                unlink($file);
+                if (pathinfo($file, PATHINFO_EXTENSION) == 'fatal_error') {
+                    $error = unserialize(file_get_contents($file));
+                    throw new \Exception(sprintf('Fatal error (workerID=%s): %s in %s on line %s', $error["workerID"], $error["message"], $error["file"], $error["line"]), E_USER_ERROR);
+                }
+                else {
+                    $events = unserialize(file_get_contents($file));
+                    $eventService->replay($events);
+                    unlink($file);
+                }
             }
 
             // Dismiss finished processes.
@@ -148,7 +154,7 @@ class ParallelRunnerCommand extends BehatCommand
 
 
         $gherkin = $this->getContainer()->get('gherkin');
-        $eventService = $this->getContainer()->get('behat.gearman.service.event');
+        $eventService = $this->getContainer()->get('behat.parallel_runner.service.event');
 
         $feature_count = 1;
         foreach ($this->getFeaturesPaths() as $path) {
@@ -166,7 +172,8 @@ class ParallelRunnerCommand extends BehatCommand
                           '_',
                           $feature->getFile()
                       );
-                    file_put_contents($output_file, serialize($eventService->getEvents()));
+                    $events = $eventService->getEvents();
+                    file_put_contents($output_file, serialize($events));
                     $eventService->flushEvents();
                 }
                 $feature_count++;
@@ -190,7 +197,7 @@ class ParallelRunnerCommand extends BehatCommand
                     $process->stop(30);
                 }
             }
-            $dispatcher->dispatch('afterSuite', new SuiteEvent($logger, $parameters, FALSE));
+            $dispatcher->dispatch('afterSuite', new SuiteEvent($logger, $parameters, false));
             throw new \Exception("Received Kill signal $signal");
         };
         pcntl_signal(SIGINT, $function);
@@ -215,6 +222,19 @@ class ParallelRunnerCommand extends BehatCommand
             pcntl_signal(SIGINT, $function);
             pcntl_signal(SIGTERM, $function);
             pcntl_signal(SIGQUIT, $function);
+        }
+        register_shutdown_function(array($this, "fatal_handler"));
+    }
+
+    /**
+     * Register handler for fatal PHP errors.
+     */
+    function fatal_handler() {
+        $error = error_get_last();
+        if ($error['type'] == E_ERROR) {
+            $error['workerID'] = $this->workerID;
+            $output_file = sys_get_temp_dir() . '/behat-' . $this->suiteID . '/' . $this->workerID . '.fatal_error';
+            file_put_contents($output_file, serialize($error));
         }
     }
 

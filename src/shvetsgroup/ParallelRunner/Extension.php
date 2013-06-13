@@ -26,7 +26,7 @@ class Extension implements ExtensionInterface
         );
         $container
           ->register(
-              'parallel_runner.console.processor.parallel',
+              'behat.parallel_runner.console.processor.parallel',
               '\shvetsgroup\ParallelRunner\Console\Processor\ParallelProcessor'
           )
           ->addArgument(new Reference('service_container'))
@@ -38,7 +38,8 @@ class Extension implements ExtensionInterface
           ->addArgument('Event recorder for events handled by a Gearman worker.')
           ->addTag('behat.formatter.dispatcher');
         $container
-          ->register('behat.gearman.service.event', '\shvetsgroup\ParallelRunner\Service\EventService')
+          ->register('behat.parallel_runner.service.event', '\shvetsgroup\ParallelRunner\Service\EventService')
+          ->addArgument(new Reference('service_container'))
           ->addArgument(new Reference('behat.event_dispatcher'));
 
         $container->setParameter('parallel.process_count', $config['process_count']);
@@ -54,16 +55,16 @@ class Extension implements ExtensionInterface
     public function getConfig(ArrayNodeDefinition $builder)
     {
         $builder
-            ->children()
-                ->scalarNode('process_count')
-                    ->defaultValue(1)
-                ->end()
-                ->arrayNode('profiles')
-                    ->defaultValue(array())
-                    ->prototype('scalar')
-                    ->end()
-                ->end()
-            ->end();
+          ->children()
+              ->scalarNode('process_count')
+                  ->defaultValue(1)
+              ->end()
+              ->arrayNode('profiles')
+                  ->defaultValue(array())
+                  ->prototype('scalar')
+                  ->end()
+              ->end()
+          ->end();
     }
 
     /**
