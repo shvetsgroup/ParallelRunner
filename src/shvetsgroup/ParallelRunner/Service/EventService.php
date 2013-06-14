@@ -117,7 +117,9 @@ class EventService
                 case 'afterBackground':
                 case 'beforeOutline':
                 case 'afterOutline':
+                    $this->getContainer()->get('behat.hook.dispatcher')->setDryRun();
                     $this->eventDispatcher->dispatch($name, $event);
+                    $this->getContainer()->get('behat.hook.dispatcher')->setDryRun(FALSE);
                     break;
 
                 // ignored
