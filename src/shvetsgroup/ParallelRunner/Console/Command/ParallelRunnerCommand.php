@@ -6,13 +6,10 @@
 
 namespace shvetsgroup\ParallelRunner\Console\Command;
 
-use Behat\Behat\Console\Command\BehatCommand,
-  Behat\Behat\Event\SuiteEvent;
+use Behat\Behat\Console\Command\BehatCommand, Behat\Behat\Event\SuiteEvent;
 
-use Symfony\Component\DependencyInjection\ContainerInterface,
-  Symfony\Component\Console\Input\InputOption,
-  Symfony\Component\Console\Input\InputInterface,
-  Symfony\Component\Console\Output\OutputInterface,
+use Symfony\Component\DependencyInjection\ContainerInterface, Symfony\Component\Console\Input\InputOption,
+  Symfony\Component\Console\Input\InputInterface, Symfony\Component\Console\Output\OutputInterface,
   Symfony\Component\Process\Process;
 
 
@@ -39,6 +36,11 @@ class ParallelRunnerCommand extends BehatCommand
     protected $workerID;
 
     /**
+     * @var array List of features tested by workers.
+     */
+    protected $testedByWorker;
+
+    /**
      * @var string Suite ID.
      */
     protected $suiteID;
@@ -54,9 +56,7 @@ class ParallelRunnerCommand extends BehatCommand
             return $this->getCliReturnCode();
         } else {
             if ($this->processCount > 1) {
-                $this->beforeSuite();
-                $this->runParallel($input);
-                $this->afterSuite();
+                $this->runParallel($input, $output);
 
                 return $this->getCliReturnCode();
             } else {
@@ -68,17 +68,45 @@ class ParallelRunnerCommand extends BehatCommand
     /**
      * Run features in parallel.
      */
-    protected function runParallel(InputInterface $input)
+    protected function runParallel(InputInterface $input, OutputInterface $output)
     {
-        $eventService = $this->getContainer()->get('behat.parallel_runner.service.event');
-        $this->suiteID = time() . '-' . rand(1, PHP_INT_MAX);
-        $result_dir = sys_get_temp_dir() . '/behat-' . $this->suiteID;
-        if (!is_dir($result_dir)) {
-            mkdir($result_dir);
+        $this->beforeSuite();
+
+        $this->setSuiteID(time() . '-' . rand(1, PHP_INT_MAX));
+        $this->createTestPlan();
+        $this->startWorkers($input, $output);
+        $this->processTestResults();
+
+        $this->afterSuite();
+    }
+
+    /**
+     * Creates a list of files, one per a feature to test. These files will serve as a task list for test workers.
+     * Each file will be removed once worker has taken it to work.
+     */
+    protected function createTestPlan()
+    {
+        $gherkin = $this->getContainer()->get('gherkin');
+        foreach ($this->getFeaturesPaths() as $path) {
+            $features = $gherkin->load((string) $path);
+            foreach ($features as $feature) {
+                $output_file = $this->getTestDir() . '/plan/' . str_replace('/', '_', $feature->getFile());
+                file_put_contents($output_file, $feature->getFile());
+            }
         }
+    }
+
+    /**
+     * Start worker processes, using all console prameters, that client process got.
+     *
+     * @param InputInterface $input
+     */
+    protected function startWorkers(InputInterface $input, OutputInterface $output)
+    {
+        $this->registerParentSignal();
 
         // Prepare parameters string.
-        $command_template = array(realpath($_SERVER['SCRIPT_FILENAME']));
+        $command_template = array('XDEBUG_CONFIG="idekey=worker"  ' . realpath($_SERVER['SCRIPT_FILENAME']));
         foreach ($input->getArguments() as $argument) {
             $command_template[] = $argument;
         }
@@ -92,7 +120,7 @@ class ParallelRunnerCommand extends BehatCommand
         }
         $command_template[] = "--out='/dev/null'";
 
-        // Spin new test processes while there are still tasks in queue.
+        // Spin new testing processes.
         $this->processes = array();
         $profiles = $this->getContainer()->getParameter('parallel.profiles');
         for ($i = 0; $i < $this->processCount; $i++) {
@@ -108,22 +136,35 @@ class ParallelRunnerCommand extends BehatCommand
             $this->processes[$i] = new Process($final_command);
             $this->processes[$i]->start();
         }
+    }
 
-        // catch app interruption
-        $this->registerParentSignal();
-
-        // Print test results while workers do the testing job.
+    /**
+     * Scan the workers' test results and output them in combined way.
+     *
+     * @throws \Exception
+     */
+    protected function processTestResults()
+    {
+        $eventService = $this->getContainer()->get('behat.parallel_runner.service.event');
         while (count($this->processes) > 0) {
             sleep(1);
 
             // Process events, dumped by children processes (in other words, do the formatting job).
-            $files = glob($result_dir . '/*', GLOB_BRACE);
+            $files = glob($this->getTestDir() . '/results/*', GLOB_BRACE);
             foreach ($files as $file) {
                 if (pathinfo($file, PATHINFO_EXTENSION) == 'fatal_error') {
                     $error = unserialize(file_get_contents($file));
-                    throw new \Exception(sprintf('Fatal error (workerID=%s): %s in %s on line %s', $error["workerID"], $error["message"], $error["file"], $error["line"]), E_USER_ERROR);
-                }
-                else {
+                    throw new \Exception(sprintf(
+                        'Fatal error (workerID=%s): %s in %s on line %s',
+                        $error["workerID"],
+                        $error["message"],
+                        $error["file"],
+                        $error["line"]
+                    ), E_USER_ERROR);
+                } elseif (pathinfo($file, PATHINFO_EXTENSION) == 'exception') {
+                    $error = file_get_contents($file);
+                    throw new \Exception($error, E_USER_ERROR);
+                } else {
                     $events = unserialize(file_get_contents($file));
                     $eventService->replay($events);
                     unlink($file);
@@ -137,7 +178,7 @@ class ParallelRunnerCommand extends BehatCommand
                 }
             }
         }
-        rmdir($result_dir);
+        $this->removeTestDir();
     }
 
     /**
@@ -152,33 +193,55 @@ class ParallelRunnerCommand extends BehatCommand
         $formatterManager->disableFormatters();
         $formatterManager->initFormatter('recorder');
 
-
         $gherkin = $this->getContainer()->get('gherkin');
         $eventService = $this->getContainer()->get('behat.parallel_runner.service.event');
 
-        $feature_count = 1;
-        foreach ($this->getFeaturesPaths() as $path) {
-            // Run the tests and record the events.
+        while ($feature_path = $this->getFeatureFromTestPlan()) {
             $eventService->flushEvents();
-            $features = $gherkin->load((string) $path);
+            $features = $gherkin->load((string) $feature_path);
             foreach ($features as $feature) {
-                if (($feature_count % $this->processCount) == $this->workerID) {
+                try {
                     $tester = $this->getContainer()->get('behat.tester.feature');
                     $tester->setDryRun($this->isDryRun());
                     $feature->accept($tester);
 
-                    $output_file = sys_get_temp_dir() . '/behat-' . $this->suiteID . '/' . str_replace(
-                          '/',
-                          '_',
-                          $feature->getFile()
-                      );
+                    $output_file = $this->getTestDir() . '/results/' . str_replace('/', '_', $feature->getFile());
                     $events = $eventService->getEvents();
                     file_put_contents($output_file, serialize($events));
                     $eventService->flushEvents();
+                } catch (\Exception $e) {
+                    $this->exceptionHandler($e);
                 }
-                $feature_count++;
             }
         }
+    }
+
+    /**
+     * Scans the test plan and returns the path to an untested feature.
+     *
+     * @return bool|string
+     */
+    protected function getFeatureFromTestPlan()
+    {
+        $test_plan = glob($this->getTestDir() . '/plan/*', GLOB_BRACE);
+        foreach ($test_plan as $test_job) {
+            if (is_file($test_job)) {
+                $fp = @fopen($test_job, "c+");
+                if ($fp && flock($fp, LOCK_EX | LOCK_NB)) {
+                    $feature_path = fread($fp, filesize($test_job));
+                    ftruncate($fp, 0);
+                    fclose($fp);
+                    unlink($test_job);
+                    if (is_file($feature_path) && !isset($this->testedByWorker[$feature_path])) {
+                        $this->testedByWorker[$feature_path] = true;
+
+                        return $feature_path;
+                    }
+                }
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -223,18 +286,73 @@ class ParallelRunnerCommand extends BehatCommand
             pcntl_signal(SIGTERM, $function);
             pcntl_signal(SIGQUIT, $function);
         }
-        register_shutdown_function(array($this, "fatal_handler"));
+        set_exception_handler(array($this, "exceptionHandler"));
+        register_shutdown_function(array($this, "fatalErrorHandler"));
     }
 
     /**
-     * Register handler for fatal PHP errors.
+     * Creates a special file in test directory, which contains a description about fatal error in worker. This
+     * fatal error then replayed as exception in the main thread.
      */
-    function fatal_handler() {
+    function fatalErrorHandler()
+    {
         $error = error_get_last();
         if ($error['type'] == E_ERROR) {
             $error['workerID'] = $this->workerID;
-            $output_file = sys_get_temp_dir() . '/behat-' . $this->suiteID . '/' . $this->workerID . '.fatal_error';
+            $output_file = $this->getTestDir() . '/results/' . $this->workerID . '.fatal_error';
             file_put_contents($output_file, serialize($error));
+        }
+    }
+
+    /**
+     * Creates a special file in test directory, which contains an exception message.
+     */
+    function exceptionHandler($exception)
+    {
+        $output_file = $this->getTestDir() . '/results/' . $this->workerID . '.exception';
+        file_put_contents($output_file, "Worker exception (workerID={$this->workerID}): " . $exception->getMessage());
+    }
+
+    /**
+     * @return string The full path to temporary directory, which contains the test plan and results from workers.
+     */
+    protected function getTestDir()
+    {
+        $test_dir = sys_get_temp_dir() . '/behat-' . $this->suiteID;
+        if (!is_dir($test_dir)) {
+            mkdir($test_dir);
+        }
+        if (!is_dir($test_dir . '/results')) {
+            mkdir($test_dir . '/results');
+        }
+        if (!is_dir($test_dir . '/plan')) {
+            mkdir($test_dir . '/plan');
+        }
+
+        return $test_dir;
+    }
+
+    /**
+     * Removes all testing directories after the test.
+     */
+    function removeTestDir($dir = null)
+    {
+        if (is_null($dir)) {
+            $dir = $this->getTestDir();
+        }
+        if (is_dir($dir)) {
+            $objects = scandir($dir);
+            foreach ($objects as $object) {
+                if ($object != "." && $object != "..") {
+                    if (filetype($dir . "/" . $object) == "dir") {
+                        $this->removeTestDir($dir . "/" . $object);
+                    } else {
+                        unlink($dir . "/" . $object);
+                    }
+                }
+            }
+            reset($objects);
+            rmdir($dir);
         }
     }
 

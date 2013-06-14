@@ -6,6 +6,7 @@
 
 namespace shvetsgroup\ParallelRunner\Normalizer;
 
+use Behat\Behat\Definition\DefinitionSnippet;
 use Symfony\Component\Serializer\Normalizer\GetSetMethodNormalizer,
   Symfony\Component\Serializer\Normalizer\NormalizerInterface,
   Symfony\Component\Serializer\Normalizer\DenormalizerInterface,
@@ -93,7 +94,7 @@ class EventNormalizer extends GetSetMethodNormalizer implements NormalizerInterf
             $feature = reset($gherkin->load($data['feature']));
             $data['feature'] = $feature;
         }
-        foreach (array('logicalParent', 'scenario') as $key) {
+        foreach (array('logicalParent', 'parent', 'scenario') as $key) {
             if (isset($data[$key])) {
                 $feature = reset($gherkin->load($data[$key]['feature'], array(new LineFilter($data[$key]['line']))));
                 $data[$key] = reset($feature->getScenarios());
@@ -120,6 +121,10 @@ class EventNormalizer extends GetSetMethodNormalizer implements NormalizerInterf
         if (isset($data['step'])) {
             $feature = reset($gherkin->load($data['step']['feature']));
             $data['step'] = $this->findStep($feature, $data['step']['line']);
+        }
+        if (isset($data['snippet'])) {
+            $definitionDispatcher = $container->get('behat.definition.dispatcher');
+            $data['snippet'] = $definitionDispatcher->proposeDefinition($data['context'], $data['step']);
         }
         if (isset($data['exception'])) {
             $data['exception'] = new \Exception($data['exception']['message'], $data['exception']['code']);

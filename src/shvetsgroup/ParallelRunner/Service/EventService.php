@@ -185,6 +185,7 @@ class EventService
                 'scenario' => array($normalizer, 'normalizeNode'),
                 'outline' => array($normalizer, 'normalizeNode'),
                 'background' => array($normalizer, 'normalizeNode'),
+                'parent' => array($normalizer, 'normalizeNode'),
                 'logicalParent' => array($normalizer, 'normalizeNode'),
                 'step' => array($normalizer, 'normalizeNode'),
                 'exception' => array($normalizer, 'normalizeException'),
