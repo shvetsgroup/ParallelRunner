@@ -202,7 +202,7 @@ class ParallelRunnerCommand extends BehatCommand
             foreach ($features as $feature) {
                 try {
                     $tester = $this->getContainer()->get('behat.tester.feature');
-                    $tester->setDryRun($this->isDryRun());
+                    $tester->setSkip($this->isDryRun());
                     $feature->accept($tester);
 
                     $output_file = $this->getTestDir() . '/results/' . str_replace('/', '_', $feature->getFile());
