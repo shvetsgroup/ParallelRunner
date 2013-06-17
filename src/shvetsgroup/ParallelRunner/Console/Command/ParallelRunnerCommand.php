@@ -149,6 +149,13 @@ class ParallelRunnerCommand extends BehatCommand
         while (count($this->processes) > 0) {
             sleep(1);
 
+            // Dismiss finished processes.
+            foreach ($this->processes as $i => $process) {
+                if (!$this->processes[$i]->isRunning()) {
+                    unset($this->processes[$i]);
+                }
+            }
+
             // Process events, dumped by children processes (in other words, do the formatting job).
             $files = glob($this->getTestDir() . '/results/*', GLOB_BRACE);
             foreach ($files as $file) {
@@ -168,13 +175,6 @@ class ParallelRunnerCommand extends BehatCommand
                     $events = unserialize(file_get_contents($file));
                     $eventService->replay($events);
                     unlink($file);
-                }
-            }
-
-            // Dismiss finished processes.
-            foreach ($this->processes as $i => $process) {
-                if (!$this->processes[$i]->isRunning()) {
-                    unset($this->processes[$i]);
                 }
             }
         }
