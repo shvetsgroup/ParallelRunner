@@ -91,21 +91,26 @@ class EventNormalizer extends GetSetMethodNormalizer implements NormalizerInterf
             $data['context'] = $container->get('behat.context.dispatcher')->createContext();
         }
         if (isset($data['feature'])) {
-            $feature = reset($gherkin->load($data['feature']));
+            $features = $gherkin->load($data['feature']);
+            $feature = reset($features);
             $data['feature'] = $feature;
         }
         foreach (array('logicalParent', 'parent', 'scenario') as $key) {
             if (isset($data[$key])) {
-                $feature = reset($gherkin->load($data[$key]['feature'], array(new LineFilter($data[$key]['line']))));
-                $data[$key] = reset($feature->getScenarios());
+                $features = $gherkin->load($data[$key]['feature'], array(new LineFilter($data[$key]['line'])));
+                $feature = reset($features);
+                $scenarios = $feature->getScenarios();
+                $data[$key] = reset($scenarios);
             }
         }
         if (isset($data['outline'])) {
             $gherkin->setFreeze(false);
+            $features = $gherkin->load($data['outline']['feature'], array(new LineFilter($data['outline']['line'])));
             $feature = reset(
-                $gherkin->load($data['outline']['feature'], array(new LineFilter($data['outline']['line'])))
+                $features
             );
-            $outline = reset($feature->getScenarios());
+            $scenarios = $feature->getScenarios();
+            $outline = reset($scenarios);
 
             $steps = $outline->getSteps();
             foreach ($steps as $i => $step) {
@@ -115,11 +120,13 @@ class EventNormalizer extends GetSetMethodNormalizer implements NormalizerInterf
             $data['outline'] = $outline;
         }
         if (isset($data['background'])) {
-            $feature = reset($gherkin->load($data['background']['feature']));
+            $features = $gherkin->load($data['background']['feature']);
+            $feature = reset($features);
             $data['background'] = $feature->getBackground();
         }
         if (isset($data['step'])) {
-            $feature = reset($gherkin->load($data['step']['feature']));
+            $features = $gherkin->load($data['step']['feature']);
+            $feature = reset($features);
             $data['step'] = $this->findStep($feature, $data['step']['line']);
         }
         if (isset($data['snippet'])) {
