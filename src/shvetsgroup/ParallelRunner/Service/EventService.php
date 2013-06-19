@@ -6,13 +6,15 @@
 
 namespace shvetsgroup\ParallelRunner\Service;
 
+use Behat\Behat\Event\OutlineExampleEvent;
+use Behat\Behat\Event\ScenarioEvent;
+use Behat\Behat\Event\StepEvent;
+use shvetsgroup\ParallelRunner\Context\NullContext;
+use shvetsgroup\ParallelRunner\EventDispatcher\NullEventDispatcher;
 use Symfony\Component\EventDispatcher\EventDispatcher,
-  Symfony\Component\DependencyInjection\ContainerInterface,
-  Symfony\Component\Serializer\Serializer,
-  Symfony\Component\Serializer\Encoder\JsonEncoder;
+  Symfony\Component\DependencyInjection\ContainerInterface;
 
-use shvetsgroup\ParallelRunner\Formatter\EventRecorder,
-  shvetsgroup\ParallelRunner\Normalizer\EventNormalizer;
+use shvetsgroup\ParallelRunner\Formatter\EventRecorder;
 
 /**
  * Event service
@@ -32,11 +34,6 @@ class EventService
     private $eventDispatcher;
 
     /**
-     * @var EventNormalizer
-     */
-    private $eventNormalizer;
-
-    /**
      * @var ContainerInterface
      */
     private $container;
@@ -50,7 +47,6 @@ class EventService
     {
         $this->container = $container;
         $this->eventDispatcher = $eventDispatcher;
-        $this->eventNormalizer = new EventNormalizer();
     }
 
     /**
@@ -94,11 +90,8 @@ class EventService
      */
     public function replay($events)
     {
-        $serializer = $this->getSerializer();
-
-        foreach ($events as $eventInfo) {
-            list($name, $event_class, $event_json) = $eventInfo;
-            $event = $serializer->deserialize($event_json, $event_class, 'json', array('container' => $this->getContainer()));
+        foreach ($events as $eventTurple) {
+            list($name, $event) = $eventTurple;
             $event->replay = true;
 
             switch ($name) {
@@ -148,14 +141,45 @@ class EventService
      */
     public function getEvents()
     {
-        $serializer = $this->getSerializer();
         $events = $this->getEventRecorder()->rip();
 
-        foreach ($events as $key => $eventTuple) {
-            list($name, $event) = $eventTuple;
-            $event_class = get_class($event);
-            $event_json = $serializer->serialize($event, 'json', array('container' => $this->getContainer()));
-            $events[$key] = array($name, $event_class, $event_json);
+        foreach ($events as $key => $eventTurple) {
+            list($name, $event) = $eventTurple;
+
+            if ($event instanceof StepEvent) {
+                $event = new StepEvent(
+                    $event->getStep(),
+                    $event->getLogicalParent(),
+                    new NullContext(),
+                    $event->getResult(),
+                    null,
+                    $event->getException() ? new \Exception($event->getException()->getMessage()) : null,
+                    $event->getSnippet()
+                );
+            }
+
+            if ($event instanceof OutlineExampleEvent) {
+                $event = new OutlineExampleEvent(
+                    $event->getOutline(),
+                    $event->getIteration(),
+                    new NullContext(),
+                    $event->getResult(),
+                    $event->isSkipped()
+                );
+            }
+
+            if ($event instanceof ScenarioEvent) {
+                $event = new ScenarioEvent(
+                    $event->getScenario(),
+                    new NullContext(),
+                    $event->getResult(),
+                    $event->isSkipped()
+                );
+            }
+
+            $event->setDispatcher(new NullEventDispatcher());
+
+            $events[$key] = array($name, $event);
         }
 
         return $events;
@@ -169,33 +193,5 @@ class EventService
     protected function getContainer()
     {
         return $this->container;
-    }
-
-    /**
-     * @return Serializer
-     */
-    protected function getSerializer()
-    {
-        $encoder = new JsonEncoder();
-        $normalizer = new EventNormalizer();
-        $normalizer->setCallbacks(
-            array(
-                'dispatcher' => array($normalizer, 'normalizeEmpty'),
-                'context' => array($normalizer, 'normalizeEmpty'),
-                'feature' => array($normalizer, 'normalizeFeature'),
-                'definition' => array($normalizer, 'normalizeNull'),
-                'scenario' => array($normalizer, 'normalizeNode'),
-                'outline' => array($normalizer, 'normalizeNode'),
-                'background' => array($normalizer, 'normalizeNode'),
-                'parent' => array($normalizer, 'normalizeNode'),
-                'logicalParent' => array($normalizer, 'normalizeNode'),
-                'step' => array($normalizer, 'normalizeNode'),
-                'exception' => array($normalizer, 'normalizeException'),
-                'trace' => array($normalizer, 'normalizeNull'),
-            )
-        );
-        $serializer = new Serializer(array($normalizer), array($encoder));
-
-        return $serializer;
     }
 }
