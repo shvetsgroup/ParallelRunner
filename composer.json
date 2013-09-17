@@ -15,7 +15,7 @@
     "require": {
         "php": ">=5.3.6",
         "behat/behat": ">=2.4.6,<2.5.0",
-        "symfony/process": "2.2.*"
+        "symfony/process": ">=2.2.0"
     },
     "autoload": {
         "psr-0": { "shvetsgroup\\ParallelRunner": "src/" }
