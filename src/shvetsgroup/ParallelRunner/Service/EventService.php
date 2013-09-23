@@ -10,6 +10,7 @@ use Behat\Behat\Event\OutlineExampleEvent;
 use Behat\Behat\Event\ScenarioEvent;
 use Behat\Behat\Event\StepEvent;
 use shvetsgroup\ParallelRunner\Context\NullContext;
+use shvetsgroup\ParallelRunner\Exception\WorkerException;
 use shvetsgroup\ParallelRunner\EventDispatcher\NullEventDispatcher;
 use Symfony\Component\EventDispatcher\EventDispatcher,
   Symfony\Component\DependencyInjection\ContainerInterface;
@@ -153,7 +154,7 @@ class EventService
                     new NullContext(),
                     $event->getResult(),
                     null,
-                    $event->getException() ? new \Exception($event->getException()->getMessage()) : null,
+                    $event->getException() ? new WorkerException($event->getException()->getMessage()) : null,
                     $event->getSnippet()
                 );
             }
