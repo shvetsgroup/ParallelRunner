@@ -110,9 +110,14 @@ class ParallelRunnerCommand extends BehatCommand
         foreach ($input->getArguments() as $argument) {
             $command_template[] = $argument;
         }
+        $definition = $this->getDefinition();
         foreach ($input->getOptions() as $option => $value) {
             if ($value && $option != 'parallel' && $option != 'profile') {
-                $command_template[] = "--$option='$value'";
+                if ($definition->getOption($option)->acceptValue()) {
+                    $command_template[] = "--$option='$value'";
+                } else {
+                    $command_template[] = "--$option";
+                }
             }
         }
         if (!$input->getOption('cache')) {
