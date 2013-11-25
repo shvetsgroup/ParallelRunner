@@ -14,7 +14,7 @@ This extension requires:
 {
     "require": {
         ...
-        "shvetsgroup/parallelrunner": "*"
+        "shvetsgroup/parallelrunner": "dev-master"
     }
 }
 ```
