@@ -1,7 +1,7 @@
 {
     "name": "shvetsgroup/parallelrunner",
     "type": "library",
-    "description": "Prallel runner extension for Behat",
+    "description": "Parallel runner extension for Behat",
     "keywords": ["behat", "bdd", "parallel", "runner"],
     "homepage": "http://github.com/shvetsgroup/",
     "license": "MIT",
@@ -15,7 +15,7 @@
     "require": {
         "php": ">=5.3.6",
         "ext-pcntl": "*",
-        "behat/behat": ">=2.4.6,<2.5.0",
+        "behat/behat": ">=2.4.6,<3.0",
         "symfony/process": ">=2.2.0"
     },
     "autoload": {
