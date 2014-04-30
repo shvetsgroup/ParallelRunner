@@ -83,6 +83,6 @@ $ bin/behat -l 4
 
 ## Troubleshooting
 
-1. If you're using Selenium, make sure it's launched in Hub mode to get all the benefits of parallelism (http://selenium-grid.seleniumhq.org/run_the_demo.html).
+1. If you're using Selenium, make sure it's launched in Hub mode to get all the benefits of parallelism (http://docs.seleniumhq.org/docs/07_selenium_grid.jsp).
 
 2. This extension does not work with features which have closures as definitions (you'll get "Serialization of 'Closure' is not allowed" errors most likely).
