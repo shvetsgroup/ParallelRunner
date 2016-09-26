@@ -11,10 +11,10 @@ use Symfony\Component\Config\Definition\Builder\ArrayNodeDefinition,
   Symfony\Component\DependencyInjection\Reference;
 
 #use Behat\Behat\Extension\ExtensionInterface;
-use Behat\Testwork\ServiceContainer\Extension
+use Behat\Testwork\ServiceContainer\Extension as ExtensionInterface
 
-#class Extension  implements ExtensionInterface
-class Extension implements Extension
+class Extension  implements ExtensionInterface
+#class Extension implements Extension
 {
     /**
      * {@inheritdoc}
