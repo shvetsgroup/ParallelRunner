@@ -1,5 +1,5 @@
 {
-    "name": "esboych/parallelrunner",
+    "name": "shvetsgroup/parallelrunner",
     "type": "library",
     "description": "Parallel runner extension for Behat",
     "keywords": ["behat", "bdd", "parallel", "runner"],
