@@ -7,7 +7,7 @@
     "license": "MIT",
     "authors": [
         {
-            "name": "Alexander Shvets",
+            "name": "Yevgen",
             "email": "neochief@shvetsgroup.com",
             "role": "developer"
         }
@@ -15,7 +15,7 @@
     "require": {
         "php": ">=5.3.6",
         "ext-pcntl": "*",
-        "behat/behat": ">=2.4.6,<3.0",
+        "behat/behat": ">3.0",
         "symfony/process": ">=2.2.0"
     },
     "autoload": {

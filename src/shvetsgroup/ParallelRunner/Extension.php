@@ -6,19 +6,19 @@
 
 namespace shvetsgroup\ParallelRunner;
 
+use Behat\Testwork\ServiceContainer\ExtensionManager;
 use Symfony\Component\Config\Definition\Builder\ArrayNodeDefinition,
   Symfony\Component\DependencyInjection\ContainerBuilder,
   Symfony\Component\DependencyInjection\Reference;
 
-use Behat\Behat\Extension\ExtensionInterface;
-
+use Behat\Testwork\ServiceContainer\Extension as ExtensionInterface;
 
 class Extension implements ExtensionInterface
 {
     /**
      * {@inheritdoc}
      */
-    public function load(array $config, ContainerBuilder $container)
+    public function load(ContainerBuilder $container, array $config)
     {
         $container->setParameter(
             'behat.console.command.class',
@@ -40,7 +40,7 @@ class Extension implements ExtensionInterface
         $container
           ->register('behat.parallel_runner.service.event', '\shvetsgroup\ParallelRunner\Service\EventService')
           ->addArgument(new Reference('service_container'))
-          ->addArgument(new Reference('behat.event_dispatcher'));
+          ->addArgument(new Reference('event_dispatcher'));
 
         $container->setParameter('parallel.process_count', $config['process_count']);
         $container->setParameter('parallel.profiles', $config['profiles']);
@@ -56,15 +56,15 @@ class Extension implements ExtensionInterface
     {
         $builder
           ->children()
-              ->scalarNode('process_count')
+              ->integerNode('process_count')
+                  ->min(1)
                   ->defaultValue(1)
-              ->end()
-              ->arrayNode('profiles')
-                  ->defaultValue(array())
-                  ->prototype('scalar')
                   ->end()
+              ->scalarNode('profiles')
+              ->defaultValue([])
               ->end()
           ->end();
+
     }
 
     /**
@@ -74,8 +74,59 @@ class Extension implements ExtensionInterface
      */
     public function getCompilerPasses()
     {
-        return array();
+        return [];
     }
+
+  /**
+   * You can modify the container here before it is dumped to PHP code.
+   *
+   * @param ContainerBuilder $container
+   */
+  public function process(ContainerBuilder $container) {
+    // TODO: Implement process() method.
+  }
+
+  /**
+   * Returns the extension config key.
+   *
+   * @return string
+   */
+  public function getConfigKey() {
+    return 'ParallelRunner';
+  }
+
+  /**
+   * Initializes other extensions.
+   *
+   * This method is called immediately after all extensions are activated but
+   * before any extension `configure()` method is called. This allows extensions
+   * to hook into the configuration of other extensions providing such an
+   * extension point.
+   *
+   * @param ExtensionManager $extensionManager
+   */
+  public function initialize(ExtensionManager $extensionManager) {
+    // TODO: Implement initialize() method.
+  }
+
+  /**
+   * Setups configuration for the extension.
+   *
+   * @param ArrayNodeDefinition $builder
+   */
+  public function configure(ArrayNodeDefinition $builder) {
+    // TODO: Implement configure() method.
+    $builder
+      ->children()
+      ->integerNode('process_count')
+      ->min(1)
+      ->defaultValue(1)
+      ->end()
+      ->scalarNode('profiles')
+      ->defaultValue([])
+      ->end()
+      ->end();
+  }
 }
 
 return new Extension();
